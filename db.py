@@ -32,7 +32,15 @@ def get_connection():
     """Get database connection (thread-safe)"""
     if not hasattr(_local, 'connection') or _local.connection is None:
         if USE_POSTGRES and DATABASE_URL:
-            _local.connection = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+            try:
+                _local.connection = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+                logger.info("Connected to PostgreSQL successfully")
+            except Exception as e:
+                logger.error(f"Failed to connect to PostgreSQL: {e}")
+                logger.info("Falling back to SQLite")
+                global USE_POSTGRES
+                USE_POSTGRES = False
+                _local.connection = sqlite3.connect("loyalty.db")
         else:
             _local.connection = sqlite3.connect("loyalty.db")
     return _local.connection
