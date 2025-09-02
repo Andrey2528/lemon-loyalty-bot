@@ -1,0 +1,23 @@
+name: lemon-loyalty-bot
+services:
+  web:
+    name: lemon-bot
+    type: web
+    git:
+      branch: main
+    instance_type: nano
+    autoscaling:
+      min: 1
+      max: 1
+    env:
+      - TELEGRAM_TOKEN
+    healthcheck:
+      grace_period: 10s
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    regions:
+      - fra
+    build:
+      buildpack: python
+    run: python bot.py
