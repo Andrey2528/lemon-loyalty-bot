@@ -21,4 +21,4 @@ services:
       - fra
     build:
       buildpack: python
-    run: python bot.py
+    run: "python bot.py"
