@@ -1,19 +1,48 @@
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
+
+# Environment variables
 .env
 .venv
 env/
 venv/
-.DS_Store
+
+# Database files
 *.db
+*.sqlite
 *.sqlite3
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Build files
+build/
+dist/
+*.egg-info/
+
+# Test files
 .pytest_cache/
 .coverage
 .nyc_output/
+
+# Node modules (if any)
 node_modules/
-.vscode/
-.idea/
-# Не ігноруємо runtime.txt для Koyeb
-# runtime.txt
+
+# Sensitive files
+*.key
+*.pem
+config_local.py
+secrets.py

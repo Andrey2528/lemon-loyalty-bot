@@ -11,6 +11,7 @@ services:
       max: 1
     env:
       - TELEGRAM_TOKEN
+      - DATABASE_URL
     healthcheck:
       grace_period: 10s
       interval: 60s
