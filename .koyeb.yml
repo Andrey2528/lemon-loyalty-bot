@@ -12,6 +12,7 @@ services:
     env:
       - TELEGRAM_TOKEN
       - DATABASE_URL
+      - PYTHON_VERSION=3.11.9
     healthcheck:
       grace_period: 10s
       interval: 60s
