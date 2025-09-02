@@ -66,9 +66,16 @@ def init_db():
                     user_id BIGINT PRIMARY KEY,
                     phone VARCHAR(20),
                     bonus_points INTEGER DEFAULT 0,
+                    total_spent INTEGER DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            # Add total_spent column if it doesn't exist
+            try:
+                cur.execute("ALTER TABLE users ADD COLUMN total_spent INTEGER DEFAULT 0")
+                conn.commit()
+            except Exception:
+                pass  # Column already exists
         else:
             # SQLite syntax
             cur.execute("""
@@ -76,9 +83,16 @@ def init_db():
                     user_id INTEGER PRIMARY KEY,
                     phone TEXT,
                     bonus_points INTEGER DEFAULT 0,
+                    total_spent INTEGER DEFAULT 0,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            # Add total_spent column if it doesn't exist
+            try:
+                cur.execute("ALTER TABLE users ADD COLUMN total_spent INTEGER DEFAULT 0")
+                conn.commit()
+            except Exception:
+                pass  # Column already exists
         
         conn.commit()
         logger.info("Users table initialized successfully")
@@ -123,7 +137,7 @@ def init_promos_table():
         if not USE_POSTGRES:  # SQLite connections should be closed
             close_connection()
 
-def add_user(user_id: int, phone: str, bonus_points: int = 0):
+def add_user(user_id: int, phone: str, bonus_points: int = 0, total_spent: int = 0):
     """Add or update user"""
     try:
         conn = get_connection()
@@ -131,16 +145,16 @@ def add_user(user_id: int, phone: str, bonus_points: int = 0):
         
         if USE_POSTGRES:
             cur.execute("""
-                INSERT INTO users (user_id, phone, bonus_points) 
-                VALUES (%s, %s, %s)
+                INSERT INTO users (user_id, phone, bonus_points, total_spent) 
+                VALUES (%s, %s, %s, %s)
                 ON CONFLICT (user_id) 
-                DO UPDATE SET phone = EXCLUDED.phone, bonus_points = EXCLUDED.bonus_points
-            """, (user_id, phone, bonus_points))
+                DO UPDATE SET phone = EXCLUDED.phone, bonus_points = EXCLUDED.bonus_points, total_spent = EXCLUDED.total_spent
+            """, (user_id, phone, bonus_points, total_spent))
         else:
             cur.execute("""
-                INSERT OR REPLACE INTO users (user_id, phone, bonus_points) 
-                VALUES (?, ?, ?)
-            """, (user_id, phone, bonus_points))
+                INSERT OR REPLACE INTO users (user_id, phone, bonus_points, total_spent) 
+                VALUES (?, ?, ?, ?)
+            """, (user_id, phone, bonus_points, total_spent))
         
         conn.commit()
         logger.info(f"User {user_id} added/updated successfully")
@@ -151,21 +165,22 @@ def add_user(user_id: int, phone: str, bonus_points: int = 0):
         if not USE_POSTGRES:
             close_connection()
 
-def get_user(user_id: int) -> Optional[Tuple[str, int]]:
-    """Get user by ID"""
+def get_user(user_id: int) -> Optional[Tuple[str, int, int]]:
+    """Get user by ID - returns (phone, bonus_points, total_spent)"""
     try:
         conn = get_connection()
         cur = conn.cursor()
         
         if USE_POSTGRES:
-            cur.execute("SELECT phone, bonus_points FROM users WHERE user_id = %s", (user_id,))
+            cur.execute("SELECT phone, bonus_points, total_spent FROM users WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
             if row:
-                return (row['phone'], row['bonus_points'])
+                return (row['phone'], row['bonus_points'], row['total_spent'])
         else:
-            cur.execute("SELECT phone, bonus_points FROM users WHERE user_id = ?", (user_id,))
+            cur.execute("SELECT phone, bonus_points, total_spent FROM users WHERE user_id = ?", (user_id,))
             result = cur.fetchone()
-            return result
+            if result:
+                return result
             
         return None
         
@@ -176,18 +191,18 @@ def get_user(user_id: int) -> Optional[Tuple[str, int]]:
         if not USE_POSTGRES:
             close_connection()
 
-def get_all_users() -> List[Tuple[int, str, int]]:
-    """Get all users"""
+def get_all_users() -> List[Tuple[int, str, int, int]]:
+    """Get all users - returns (user_id, phone, bonus_points, total_spent)"""
     try:
         conn = get_connection()
         cur = conn.cursor()
         
         if USE_POSTGRES:
-            cur.execute("SELECT user_id, phone, bonus_points FROM users ORDER BY created_at")
+            cur.execute("SELECT user_id, phone, bonus_points, total_spent FROM users ORDER BY created_at")
             rows = cur.fetchall()
-            return [(row['user_id'], row['phone'], row['bonus_points']) for row in rows]
+            return [(row['user_id'], row['phone'], row['bonus_points'], row['total_spent']) for row in rows]
         else:
-            cur.execute("SELECT user_id, phone, bonus_points FROM users ORDER BY created_at")
+            cur.execute("SELECT user_id, phone, bonus_points, total_spent FROM users ORDER BY created_at")
             return cur.fetchall()
             
     except Exception as e:
@@ -435,6 +450,91 @@ def get_weekly_time() -> Tuple[int, int, int]:
     except Exception as e:
         logger.error(f"Error getting weekly time: {e}")
         return (1, 10, 0)  # Default values
+    finally:
+        if not USE_POSTGRES:
+            close_connection()
+
+def add_purchase(user_id: int, amount: int):
+    """Add purchase and calculate cashback"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        
+        # Get current user data
+        user = get_user(user_id)
+        if not user:
+            logger.error(f"User {user_id} not found")
+            return
+        
+        phone, current_bonus, current_total = user
+        
+        # Calculate new total spent
+        new_total_spent = current_total + amount
+        
+        # Calculate cashback rate based on total spent
+        if new_total_spent >= 30000:  # Silver guest
+            cashback_rate = 0.10
+        else:  # Basic guest
+            cashback_rate = 0.05
+        
+        # Calculate cashback for this purchase
+        cashback = int(amount * cashback_rate)
+        new_bonus = current_bonus + cashback
+        
+        # Update database
+        if USE_POSTGRES:
+            cur.execute("""
+                UPDATE users 
+                SET bonus_points = %s, total_spent = %s 
+                WHERE user_id = %s
+            """, (new_bonus, new_total_spent, user_id))
+        else:
+            cur.execute("""
+                UPDATE users 
+                SET bonus_points = ?, total_spent = ? 
+                WHERE user_id = ?
+            """, (new_bonus, new_total_spent, user_id))
+        
+        conn.commit()
+        logger.info(f"Purchase added for user {user_id}: amount={amount}, cashback={cashback}, new_total={new_total_spent}")
+        
+    except Exception as e:
+        logger.error(f"Error adding purchase: {e}")
+    finally:
+        if not USE_POSTGRES:
+            close_connection()
+
+def use_bonus(user_id: int, amount: int) -> bool:
+    """Use bonus points for payment"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        
+        # Get current user data
+        user = get_user(user_id)
+        if not user:
+            return False
+        
+        phone, current_bonus, current_total = user
+        
+        if current_bonus < amount:
+            return False  # Not enough bonus points
+        
+        new_bonus = current_bonus - amount
+        
+        # Update database
+        if USE_POSTGRES:
+            cur.execute("UPDATE users SET bonus_points = %s WHERE user_id = %s", (new_bonus, user_id))
+        else:
+            cur.execute("UPDATE users SET bonus_points = ? WHERE user_id = ?", (new_bonus, user_id))
+        
+        conn.commit()
+        logger.info(f"Used {amount} bonus points for user {user_id}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error using bonus: {e}")
+        return False
     finally:
         if not USE_POSTGRES:
             close_connection()
