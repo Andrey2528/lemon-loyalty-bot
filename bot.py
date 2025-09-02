@@ -4,7 +4,6 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.filters import CommandStart
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, Contact, CallbackQuery
 from aiogram.client.default import DefaultBotProperties
-from aiogram.client.session.aiohttp import AiohttpSession
 from config import TELEGRAM_TOKEN
 from broadcast import register_broadcast_handlers, start_scheduler, is_admin
 
@@ -13,7 +12,6 @@ import asyncio
 import logging
 import sys
 import os
-import aiohttp
 
 # Налаштування логування
 logging.basicConfig(
@@ -25,15 +23,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Налаштування сесії з більшими timeout
-session = AiohttpSession(
-    connector=aiohttp.TCPConnector(limit=10, limit_per_host=10),
-    timeout=aiohttp.ClientTimeout(total=60, connect=30)
-)
-
 bot = Bot(
     token=TELEGRAM_TOKEN,
-    session=session,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
 dp = Dispatcher(storage=MemoryStorage())
@@ -183,8 +174,8 @@ async def copy_phone_callback(callback: CallbackQuery):
 
 async def main():
     logger.info("Бот запускається...")
-    max_retries = 3
-    retry_delay = 5
+    max_retries = 5
+    retry_delay = 10
     
     for attempt in range(max_retries):
         try:
@@ -192,20 +183,30 @@ async def main():
             register_broadcast_handlers(dp, bot, get_main_menu)
             start_scheduler(bot)
             
-            # Тест підключення до Telegram
-            me = await bot.get_me()
+            # Тест підключення до Telegram з кастомним timeout
+            logger.info("Тестування підключення до Telegram API...")
+            me = await asyncio.wait_for(bot.get_me(), timeout=30.0)
             logger.info(f"Бот успішно підключений: @{me.username}")
             logger.info("Бот готовий до роботи")
             
-            await dp.start_polling(bot)
+            await dp.start_polling(bot, polling_timeout=20, request_timeout=30)
             break
             
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout при підключенні (спроба {attempt + 1})")
+            if attempt < max_retries - 1:
+                logger.info(f"Повторна спроба через {retry_delay} секунд...")
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 1.5, 60)  # Збільшуємо затримку, але не більше 60 сек
+            else:
+                logger.error("Всі спроби підключення невдалі через timeout")
+                raise
         except Exception as e:
             logger.error(f"Помилка при запуску бота (спроба {attempt + 1}): {e}")
             if attempt < max_retries - 1:
                 logger.info(f"Повторна спроба через {retry_delay} секунд...")
                 await asyncio.sleep(retry_delay)
-                retry_delay *= 2  # Збільшуємо затримку
+                retry_delay = min(retry_delay * 1.5, 60)
             else:
                 logger.error("Всі спроби підключення невдалі")
                 raise
@@ -213,4 +214,12 @@ async def main():
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     logger.info(f"Запуск на порту: {port}")
-    asyncio.run(main())
+    
+    # Встановлюємо глобальний timeout для asyncio
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Бот зупинено користувачем")
+    except Exception as e:
+        logger.error(f"Критична помилка: {e}")
+        sys.exit(1)
