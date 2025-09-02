@@ -4,6 +4,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.filters import CommandStart
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, Contact, CallbackQuery
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from config import TELEGRAM_TOKEN
 from broadcast import register_broadcast_handlers, start_scheduler, is_admin
 
@@ -12,6 +13,7 @@ import asyncio
 import logging
 import sys
 import os
+import aiohttp
 
 # Налаштування логування
 logging.basicConfig(
@@ -23,8 +25,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Налаштування сесії з більшими timeout
+session = AiohttpSession(
+    connector=aiohttp.TCPConnector(limit=10, limit_per_host=10),
+    timeout=aiohttp.ClientTimeout(total=60, connect=30)
+)
+
 bot = Bot(
     token=TELEGRAM_TOKEN,
+    session=session,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
 dp = Dispatcher(storage=MemoryStorage())
@@ -174,14 +183,32 @@ async def copy_phone_callback(callback: CallbackQuery):
 
 async def main():
     logger.info("Бот запускається...")
-    try:
-        register_broadcast_handlers(dp, bot, get_main_menu)
-        start_scheduler(bot)
-        logger.info("Бот успішно запущений та готовий до роботи")
-        await dp.start_polling(bot)
-    except Exception as e:
-        logger.error(f"Помилка при запуску бота: {e}")
-        raise
+    max_retries = 3
+    retry_delay = 5
+    
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"Спроба підключення {attempt + 1}/{max_retries}")
+            register_broadcast_handlers(dp, bot, get_main_menu)
+            start_scheduler(bot)
+            
+            # Тест підключення до Telegram
+            me = await bot.get_me()
+            logger.info(f"Бот успішно підключений: @{me.username}")
+            logger.info("Бот готовий до роботи")
+            
+            await dp.start_polling(bot)
+            break
+            
+        except Exception as e:
+            logger.error(f"Помилка при запуску бота (спроба {attempt + 1}): {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"Повторна спроба через {retry_delay} секунд...")
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2  # Збільшуємо затримку
+            else:
+                logger.error("Всі спроби підключення невдалі")
+                raise
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
