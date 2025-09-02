@@ -30,6 +30,8 @@ _local = threading.local()
 
 def get_connection():
     """Get database connection (thread-safe)"""
+    global USE_POSTGRES
+    
     if not hasattr(_local, 'connection') or _local.connection is None:
         if USE_POSTGRES and DATABASE_URL:
             try:
@@ -38,7 +40,6 @@ def get_connection():
             except Exception as e:
                 logger.error(f"Failed to connect to PostgreSQL: {e}")
                 logger.info("Falling back to SQLite")
-                global USE_POSTGRES
                 USE_POSTGRES = False
                 _local.connection = sqlite3.connect("loyalty.db")
         else:
