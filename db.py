@@ -8,6 +8,9 @@ logger = logging.getLogger(__name__)
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# Import both database modules
+import sqlite3  # Always available
+
 if DATABASE_URL:
     # PostgreSQL with psycopg2
     try:
@@ -17,11 +20,9 @@ if DATABASE_URL:
         logger.info("Using PostgreSQL database")
     except ImportError:
         logger.error("psycopg2 not found, falling back to SQLite")
-        import sqlite3
         USE_POSTGRES = False
 else:
     # SQLite fallback
-    import sqlite3
     USE_POSTGRES = False
     logger.info("Using SQLite database")
 
