@@ -31,6 +31,7 @@ dp = Dispatcher(storage=MemoryStorage())
 
 db.init_db()
 db.init_promos_table()
+db.init_weekly_broadcast_table()
 
 # --- Головне меню ---
 def get_main_menu(is_admin=False):

@@ -263,3 +263,168 @@ def clear_promos():
     finally:
         if not USE_POSTGRES:
             close_connection()
+
+def update_promo(promo_id: int, text: str):
+    """Update promo text"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        
+        if USE_POSTGRES:
+            cur.execute("UPDATE promos SET text = %s WHERE id = %s", (text, promo_id))
+        else:
+            cur.execute("UPDATE promos SET text = ? WHERE id = ?", (text, promo_id))
+        
+        conn.commit()
+        logger.info(f"Promo {promo_id} updated successfully")
+        
+    except Exception as e:
+        logger.error(f"Error updating promo: {e}")
+    finally:
+        if not USE_POSTGRES:
+            close_connection()
+
+def init_weekly_broadcast_table():
+    """Initialize weekly broadcast table"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        
+        if USE_POSTGRES:
+            # PostgreSQL syntax
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS weekly_broadcast (
+                    id SERIAL PRIMARY KEY,
+                    text TEXT,
+                    day_of_week INTEGER DEFAULT 1,
+                    hour INTEGER DEFAULT 10,
+                    minute INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        else:
+            # SQLite syntax
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS weekly_broadcast (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    text TEXT,
+                    day_of_week INTEGER DEFAULT 1,
+                    hour INTEGER DEFAULT 10,
+                    minute INTEGER DEFAULT 0,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        
+        conn.commit()
+        logger.info("Weekly broadcast table initialized successfully")
+        
+    except Exception as e:
+        logger.error(f"Error initializing weekly broadcast table: {e}")
+    finally:
+        if not USE_POSTGRES:
+            close_connection()
+
+def set_weekly_broadcast(text: str):
+    """Set weekly broadcast text"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        
+        if USE_POSTGRES:
+            cur.execute("""
+                INSERT INTO weekly_broadcast (id, text) VALUES (1, %s)
+                ON CONFLICT (id) DO UPDATE SET text = EXCLUDED.text
+            """, (text,))
+        else:
+            cur.execute("INSERT OR REPLACE INTO weekly_broadcast (id, text) VALUES (1, ?)", (text,))
+        
+        conn.commit()
+        logger.info("Weekly broadcast text set successfully")
+        
+    except Exception as e:
+        logger.error(f"Error setting weekly broadcast: {e}")
+    finally:
+        if not USE_POSTGRES:
+            close_connection()
+
+def get_weekly_broadcast() -> Optional[str]:
+    """Get weekly broadcast text"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        
+        if USE_POSTGRES:
+            cur.execute("SELECT text FROM weekly_broadcast WHERE id = %s", (1,))
+            row = cur.fetchone()
+            if row:
+                return row['text']
+        else:
+            cur.execute("SELECT text FROM weekly_broadcast WHERE id = ?", (1,))
+            result = cur.fetchone()
+            if result:
+                return result[0]
+            
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error getting weekly broadcast: {e}")
+        return None
+    finally:
+        if not USE_POSTGRES:
+            close_connection()
+
+def set_weekly_time(day: int, hour: int, minute: int):
+    """Set weekly broadcast time"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        
+        if USE_POSTGRES:
+            cur.execute("""
+                INSERT INTO weekly_broadcast (id, day_of_week, hour, minute) VALUES (1, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET 
+                    day_of_week = EXCLUDED.day_of_week,
+                    hour = EXCLUDED.hour,
+                    minute = EXCLUDED.minute
+            """, (day, hour, minute))
+        else:
+            cur.execute("""
+                INSERT OR REPLACE INTO weekly_broadcast (id, day_of_week, hour, minute) 
+                VALUES (1, ?, ?, ?)
+            """, (day, hour, minute))
+        
+        conn.commit()
+        logger.info(f"Weekly broadcast time set: day={day}, hour={hour}, minute={minute}")
+        
+    except Exception as e:
+        logger.error(f"Error setting weekly time: {e}")
+    finally:
+        if not USE_POSTGRES:
+            close_connection()
+
+def get_weekly_time() -> Tuple[int, int, int]:
+    """Get weekly broadcast time"""
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        
+        if USE_POSTGRES:
+            cur.execute("SELECT day_of_week, hour, minute FROM weekly_broadcast WHERE id = %s", (1,))
+            row = cur.fetchone()
+            if row:
+                return (row['day_of_week'], row['hour'], row['minute'])
+        else:
+            cur.execute("SELECT day_of_week, hour, minute FROM weekly_broadcast WHERE id = ?", (1,))
+            result = cur.fetchone()
+            if result:
+                return result
+                
+        # Default values if no record found
+        return (1, 10, 0)  # Monday, 10:00
+        
+    except Exception as e:
+        logger.error(f"Error getting weekly time: {e}")
+        return (1, 10, 0)  # Default values
+    finally:
+        if not USE_POSTGRES:
+            close_connection()
