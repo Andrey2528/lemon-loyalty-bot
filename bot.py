@@ -2,7 +2,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.filters import CommandStart
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, Contact, CallbackQuery
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton, Contact, CallbackQuery, FSInputFile, BufferedInputFile
 from aiogram.client.default import DefaultBotProperties
 from config import TELEGRAM_TOKEN
 from broadcast import register_broadcast_handlers, start_scheduler, is_admin
@@ -12,6 +12,8 @@ import asyncio
 import logging
 import sys
 import os
+import qrcode
+from io import BytesIO
 
 # Налаштування логування
 logging.basicConfig(
@@ -88,9 +90,37 @@ async def show_qr(message: Message):
     if not user or not user[0]:
         await message.answer("❌ Ви ще не зареєстровані або не вказали номер телефону. Натисніть /start", reply_markup=get_back_menu())
         return
-    phone = user[0]  # phone is still the first element
-    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data={phone}"
-    await message.answer_photo(photo=qr_url, caption=f"📷 Ваш QR-код для нарахування бонусів\n\nНомер: <b>{phone}</b>", reply_markup=get_back_menu())
+    
+    phone = user[0]  # phone is the first element
+    
+    # Генерація QR-коду локально
+    try:
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(phone)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        
+        # Конвертуємо зображення в байти
+        bio = BytesIO()
+        img.save(bio, 'PNG')
+        bio.seek(0)
+        
+        # Відправляємо як BufferedInputFile
+        photo = BufferedInputFile(bio.read(), filename="qr_code.png")
+        await message.answer_photo(
+            photo=photo, 
+            caption=f"📷 Ваш QR-код для нарахування бонусів\n\nНомер: <b>{phone}</b>", 
+            reply_markup=get_back_menu()
+        )
+    except Exception as e:
+        logger.error(f"Error generating QR code: {e}")
+        await message.answer("❌ Помилка при генерації QR-коду. Спробуйте пізніше.", reply_markup=get_back_menu())
 
 # --- Мій профіль ---
 @dp.message(lambda m: m.text == "💰 Кешбек")
