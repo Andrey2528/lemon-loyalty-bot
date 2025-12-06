@@ -14,6 +14,7 @@ import sys
 import os
 import qrcode
 from io import BytesIO
+from aiohttp import web
 
 # Налаштування логування
 logging.basicConfig(
@@ -230,8 +231,31 @@ async def copy_phone_callback(callback: CallbackQuery):
     await callback.answer("Номер скопійовано!", show_alert=True)
     await callback.message.answer("+380681234345")
 
+# --- HTTP Health Check Endpoint ---
+async def health_check(request):
+    """Health check endpoint для Koyeb"""
+    return web.Response(text="OK", status=200)
+
+async def start_web_server(port: int):
+    """Запуск веб-сервера для health check"""
+    app = web.Application()
+    app.router.add_get('/', health_check)
+    app.router.add_get('/health', health_check)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    logger.info(f"HTTP сервер запущено на порту {port}")
+    return runner
+
 async def main():
     logger.info("Бот запускається...")
+    port = int(os.getenv("PORT", 8000))
+    
+    # Запускаємо HTTP сервер для health check
+    runner = await start_web_server(port)
+    
     max_retries = 5
     retry_delay = 10
     
@@ -268,10 +292,12 @@ async def main():
             else:
                 logger.error("Всі спроби підключення невдалі")
                 raise
+    
+    # Cleanup
+    await runner.cleanup()
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8000))
-    logger.info(f"Запуск на порту: {port}")
+    logger.info(f"Запуск бота...")
     
     # Встановлюємо глобальний timeout для asyncio
     try:
