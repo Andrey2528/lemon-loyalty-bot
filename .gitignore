@@ -46,3 +46,5 @@ node_modules/
 *.pem
 config_local.py
 secrets.py
+
+.md
