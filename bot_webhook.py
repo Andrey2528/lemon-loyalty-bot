@@ -129,7 +129,112 @@ async def show_qr(message: Message):
         logger.error(f"Error generating QR code: {e}")
         await message.answer("❌ Помилка при генерації QR-коду. Спробуйте пізніше.", reply_markup=get_back_menu())
 
-# Інші обробники з оригінального bot.py потрібно скопіювати сюди...
+# --- Мій профіль ---
+@dp.message(lambda m: m.text == "💰 Кешбек")
+async def profile(message: Message):
+    user = db.get_user(message.from_user.id)
+    if not user:
+        return await message.answer("❌ Ви ще не зареєстровані. Натисніть /start", reply_markup=get_back_menu())
+    
+    phone, bonus_points, total_spent = user
+    
+    # Determine cashback rate and status
+    if total_spent >= 30000:
+        status = "🍋 Silver guest"
+        cashback_rate = "10%"
+        progress = "Ви досягли максимального рівня!"
+    else:
+        status = "🍋 Basic guest"
+        cashback_rate = "5%"
+        remaining = 30000 - total_spent
+        progress = f"До Silver guest залишилось: {remaining:,} грн"
+    
+    text = f"<b>Перший кешбек у гастробарі 🔥</b>\n\n"
+    text += f"<b>{status}</b>\n"
+    text += f"З кожного замовлення вам накопичується {cashback_rate} від суми чеку.\n"
+    text += f"Його можна використати як знижку на наступне замовлення, або накопичувати далі 💳\n\n"
+    
+    if total_spent >= 30000:
+        text += f"Якщо загальна сума ваших замовлень (за весь час) становить більше 30 000 гривень.\n"
+        text += f"Ваш кешбек зростає до 10%\n\n"
+    else:
+        text += f"🍋 <b>Silver guest</b>\n"
+        text += f"Якщо загальна сума ваших замовлень (за весь час) становить більше 30 000 гривень.\n"
+        text += f"Ваш кешбек зростає до 10%\n\n"
+    
+    text += f"💰 <b>Ваш поточний баланс:</b> {bonus_points} грн\n"
+    text += f"🛍 <b>Загальна сума замовлень:</b> {total_spent:,} грн\n"
+    text += f"📈 <b>Прогрес:</b> {progress}\n\n"
+    
+    text += f"🤔 <b>Як накопичити?</b>\n"
+    text += f"Необхідно надати свій QR-код нашому персоналу для сканування. Таким чином, кешбек нарахується на ваш акаунт."
+    
+    await message.answer(text, reply_markup=get_back_menu())
+
+# --- Меню закладу ---
+@dp.message(lambda m: m.text == "🍽 Меню закладу")
+async def menu_link(message: Message):
+    text = f"Меню закладу: "
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Меню закладу", url="https://lemon.choiceqr.com/")],
+            [InlineKeyboardButton(text="‹ Повернутись до меню", callback_data="back_to_menu")]
+        ]
+    )
+    await message.answer(text, reply_markup=kb, disable_web_page_preview=True)
+
+# --- Доставка ---
+@dp.message(lambda m: m.text == "🛵 Доставка")
+async def delivery(message: Message):
+    text = "Доставка доступна через Bolt Food!"
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Bolt Food", url="https://food.bolt.eu/en-US/990/p/134325-lemon?utm_source=share_provider&utm_medium=product&utm_content=menu_header")],
+            [InlineKeyboardButton(text="‹ Повернутись до меню", callback_data="back_to_menu")]
+        ]
+    )
+    await message.answer(text, reply_markup=kb, disable_web_page_preview=True)
+
+# --- Забронювати столик ---
+@dp.message(lambda m: m.text == "📅 Забронювати столик")
+async def book_table(message: Message):
+    text = (
+        "Забронювати столик можна за номером телефону: <b>+380 68 123 43 45</b>\n"
+        "або написати в дірект Instagram."
+    )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Скопіювати номер", callback_data="copy_phone")],
+            [InlineKeyboardButton(text="Instagram", url="https://www.instagram.com/lemon.gastrobar.if?igsh=emxlN3dnZW11dWJ4")],
+            [InlineKeyboardButton(text="‹ Повернутись до меню", callback_data="back_to_menu")]
+        ]
+    )
+    await message.answer(text, reply_markup=kb, disable_web_page_preview=True)
+
+# --- Акції ---
+@dp.message(lambda m: m.text == "🏷 Акції")
+async def show_promos(message: Message):
+    promos = db.get_promos()
+    if promos:
+        text = "<b>Актуальні акції:</b>\n"
+        for pid, promo in promos:
+            text += f"\n{pid}. {promo}"
+        await message.answer(text, reply_markup=get_back_menu())
+    else:
+        await message.answer("Зараз немає актуальних акцій.", reply_markup=get_back_menu())
+
+# --- Обробка callback для повернення до меню з inline-кнопки ---
+@dp.callback_query(lambda c: c.data == "back_to_menu")
+async def inline_back_to_menu(callback: CallbackQuery):
+    isadm = is_admin(callback.message)
+    await callback.message.edit_text("🏠 Головне меню:", reply_markup=None)
+    await callback.message.answer("🏠 Головне меню:", reply_markup=get_main_menu(is_admin=isadm))
+
+# --- Обробка callback для копіювання номера телефону ---
+@dp.callback_query(lambda c: c.data == "copy_phone")
+async def copy_phone_callback(callback: CallbackQuery):
+    await callback.answer("Номер скопійовано!", show_alert=True)
+    await callback.message.answer("+380681234345")
 
 # --- Health Check ---
 async def health_check(request):
