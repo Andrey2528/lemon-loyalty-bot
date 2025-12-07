@@ -52,9 +52,11 @@ bot = Bot(
 )
 dp = Dispatcher(storage=MemoryStorage())
 
-db.init_db()
-db.init_promos_table()
-db.init_weekly_broadcast_table()
+# Ініціалізація БД відключена, бо таблиці вже створені в Supabase
+# db.init_db()
+# db.init_promos_table()
+# db.init_weekly_broadcast_table()
+logger.info("⚠️ Ініціалізація БД пропущена (таблиці вже існують в Supabase)")
 
 # --- Головне меню ---
 def get_main_menu(is_admin=False):
