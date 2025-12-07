@@ -304,7 +304,7 @@ async def on_startup(app):
     scheduler = AsyncIOScheduler()
     scheduler.add_job(keep_alive_ping, 'interval', minutes=2)  # Ping кожні 2 хвилини
     scheduler.start()
-    logger.info("🔄 Keep-alive scheduler запущено (ping кожні 5 хвилин)")
+    logger.info("🔄 Keep-alive scheduler запущено (ping кожні 2 хвилин)")
     
     # Встановлюємо webhook
     if WEBHOOK_HOST:
