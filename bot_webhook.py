@@ -73,6 +73,10 @@ def get_main_menu(is_admin=False):
     kb = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
     return kb
 
+# Реєструємо broadcast обробники ПЕРЕД іншими обробниками
+register_broadcast_handlers(dp, bot, get_main_menu)
+logger.info("✅ Broadcast handlers зареєстровано")
+
 # --- /start ---
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
@@ -290,8 +294,7 @@ async def on_startup(app):
     logger.info(f"WEBHOOK_HOST: {WEBHOOK_HOST}")
     logger.info(f"WEBHOOK_URL: {WEBHOOK_URL}")
     
-    # Реєструємо обробники
-    register_broadcast_handlers(dp, bot, get_main_menu)
+    # Запускаємо scheduler для тижневої розсилки
     start_scheduler(bot)
     
     # Запускаємо keep-alive scheduler
