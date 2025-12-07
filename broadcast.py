@@ -5,9 +5,15 @@ from config import ADMIN_USERNAMES
 import db
 import asyncio
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import logging
+
+logger = logging.getLogger(__name__)
 
 def is_admin(message: Message):
-    return message.from_user.username in ADMIN_USERNAMES
+    username = message.from_user.username
+    is_admin_user = username in ADMIN_USERNAMES
+    logger.info(f"🔐 Перевірка адміна: username='{username}', ADMIN_USERNAMES={ADMIN_USERNAMES}, is_admin={is_admin_user}")
+    return is_admin_user
 
 class AdminStates(StatesGroup):
     waiting_for_broadcast = State()
