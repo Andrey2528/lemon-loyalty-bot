@@ -16,6 +16,8 @@ import os
 import qrcode
 from io import BytesIO
 from aiohttp import web
+import aiohttp
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # Налаштування логування
 logging.basicConfig(
@@ -253,6 +255,20 @@ async def health_check(request):
     """Health check endpoint для Koyeb"""
     return web.Response(text="OK", status=200)
 
+# --- Keep-Alive функція ---
+async def keep_alive_ping():
+    """Періодичний ping щоб сервер не засинав"""
+    if WEBHOOK_HOST:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{WEBHOOK_HOST}/health") as resp:
+                    if resp.status == 200:
+                        logger.debug("✅ Keep-alive ping successful")
+                    else:
+                        logger.warning(f"⚠️ Keep-alive ping returned status {resp.status}")
+        except Exception as e:
+            logger.error(f"❌ Keep-alive ping failed: {e}")
+
 async def on_startup(app):
     """Викликається при запуску"""
     logger.info("Запуск бота в режимі webhook...")
@@ -262,6 +278,12 @@ async def on_startup(app):
     # Реєструємо обробники
     register_broadcast_handlers(dp, bot, get_main_menu)
     start_scheduler(bot)
+    
+    # Запускаємо keep-alive scheduler
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(keep_alive_ping, 'interval', minutes=5)  # Ping кожні 5 хвилин
+    scheduler.start()
+    logger.info("🔄 Keep-alive scheduler запущено (ping кожні 5 хвилин)")
     
     # Встановлюємо webhook
     if WEBHOOK_HOST:
