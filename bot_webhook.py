@@ -127,9 +127,8 @@ async def show_qr(message: Message):
         phone = user[0]  # phone is the first element
         
         # Генерація QR-коду локально
-        try:
-            qr = qrcode.QRCode(
-                version=1,
+        qr = qrcode.QRCode(
+            version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_L,
             box_size=10,
             border=4,
@@ -153,10 +152,8 @@ async def show_qr(message: Message):
         )
         logger.info(f"✅ QR-код відправлено користувачу {message.from_user.id}")
     except Exception as e:
-        logger.error(f"❌ Помилка генерації QR-коду: {e}", exc_info=True)
-        await message.answer("❌ Помилка при генерації QR-коду. Спробуйте пізніше.", reply_markup=get_back_menu())
-    except Exception as e:
         logger.error(f"❌ Помилка в show_qr: {e}", exc_info=True)
+        await message.answer("❌ Помилка при генерації QR-коду. Спробуйте пізніше.", reply_markup=get_back_menu())
 
 # --- Мій профіль ---
 @dp.message(lambda m: m.text == "💰 Кешбек")
