@@ -32,6 +32,18 @@ WEBHOOK_HOST = os.getenv("WEBHOOK_HOST", "")  # Ваш домен Koyeb
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
+# Логування для діагностики
+logger.info(f"WEBHOOK_HOST: {WEBHOOK_HOST}")
+logger.info(f"WEBHOOK_URL: {WEBHOOK_URL}")
+
+# Перевірка URL
+if not WEBHOOK_HOST:
+    logger.error("❌ WEBHOOK_HOST не встановлено!")
+elif not WEBHOOK_HOST.startswith("https://"):
+    logger.error("❌ WEBHOOK_HOST повинен починатися з https://")
+else:
+    logger.info("✅ WEBHOOK_HOST налаштовано правильно")
+
 bot = Bot(
     token=TELEGRAM_TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
@@ -244,6 +256,8 @@ async def health_check(request):
 async def on_startup(app):
     """Викликається при запуску"""
     logger.info("Запуск бота в режимі webhook...")
+    logger.info(f"WEBHOOK_HOST: {WEBHOOK_HOST}")
+    logger.info(f"WEBHOOK_URL: {WEBHOOK_URL}")
     
     # Реєструємо обробники
     register_broadcast_handlers(dp, bot, get_main_menu)
@@ -251,13 +265,22 @@ async def on_startup(app):
     
     # Встановлюємо webhook
     if WEBHOOK_HOST:
-        await bot.set_webhook(
-            url=WEBHOOK_URL,
-            drop_pending_updates=True
-        )
-        logger.info(f"Webhook встановлено: {WEBHOOK_URL}")
+        try:
+            await bot.set_webhook(
+                url=WEBHOOK_URL,
+                drop_pending_updates=True
+            )
+            logger.info(f"✅ Webhook встановлено: {WEBHOOK_URL}")
+            
+            # Перевіряємо статус webhook
+            webhook_info = await bot.get_webhook_info()
+            logger.info(f"📊 Webhook info: url={webhook_info.url}, pending_update_count={webhook_info.pending_update_count}")
+            if webhook_info.last_error_message:
+                logger.error(f"❌ Останя помилка webhook: {webhook_info.last_error_message}")
+        except Exception as e:
+            logger.error(f"❌ Помилка встановлення webhook: {e}", exc_info=True)
     else:
-        logger.warning("WEBHOOK_HOST не встановлено, бот працюватиме без webhook")
+        logger.warning("⚠️ WEBHOOK_HOST не встановлено, бот працюватиме без webhook")
 
 async def on_shutdown(app):
     """Викликається при зупинці"""
@@ -268,6 +291,7 @@ async def on_shutdown(app):
 def main():
     """Головна функція запуску"""
     port = int(os.getenv("PORT", 8000))
+    logger.info(f"🚀 Запуск веб-сервера на порту {port}")
     
     # Створюємо aiohttp додаток
     app = web.Application()
@@ -287,8 +311,13 @@ def main():
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
     
+    # Логування маршрутів
+    logger.info("📍 Зареєстровані маршрути:")
+    for route in app.router.routes():
+        logger.info(f"  {route.method} {route.resource}")
+    
     # Запускаємо сервер
-    logger.info(f"Запуск веб-сервера на порту {port}")
+    setup_application(app, dp, bot=bot)
     web.run_app(app, host='0.0.0.0', port=port)
 
 if __name__ == "__main__":
