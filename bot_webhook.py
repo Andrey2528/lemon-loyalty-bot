@@ -265,12 +265,6 @@ async def copy_phone_callback(callback: CallbackQuery):
     await callback.answer("Номер скопійовано!", show_alert=True)
     await callback.message.answer("+380681234345")
 
-# --- Загальний обробник для логування всіх повідомлень ---
-@dp.message()
-async def log_all_messages(message: Message):
-    """Логує всі необроблені повідомлення"""
-    logger.warning(f"⚠️ Необроблене повідомлення від {message.from_user.id}: text='{message.text}', content_type={message.content_type}")
-
 # --- Health Check ---
 async def health_check(request):
     """Health check endpoint для Koyeb"""
