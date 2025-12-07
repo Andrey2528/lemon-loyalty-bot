@@ -19,7 +19,7 @@ if DATABASE_URL:
 else:
     logger.info("DATABASE_URL not set, will use SQLite")
 
-ADMIN_USERNAMES = ["Andruh_a"]
+# Admin usernames (можна вказати через кому в змінній оточення або використати дефолтне значення)
+ADMIN_USERNAMES_STR = os.getenv("ADMIN_USERNAMES")
+ADMIN_USERNAMES = [username.strip() for username in ADMIN_USERNAMES_STR.split(",")]
 
-#POSTER_TOKEN = "POSTER_API_KEY"
-#POSTER_URL = "https://joinposter.com/api/"
