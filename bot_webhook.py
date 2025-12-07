@@ -28,7 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Конфігурація webhook
-WEBHOOK_HOST = os.getenv("WEBHOOK_HOST", "")  # Ваш домен Koyeb
+WEBHOOK_HOST = os.getenv("WEBHOOK_HOST", "").rstrip('/')  # Ваш домен Koyeb (прибираємо слеш на кінці)
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
