@@ -20,6 +20,7 @@ else:
     logger.info("DATABASE_URL not set, will use SQLite")
 
 # Admin usernames (можна вказати через кому в змінній оточення або використати дефолтне значення)
-ADMIN_USERNAMES_STR = os.getenv("ADMIN_USERNAMES")
+ADMIN_USERNAMES_STR = os.getenv("ADMIN_USERNAMES", "Andruh_a")
 ADMIN_USERNAMES = [username.strip() for username in ADMIN_USERNAMES_STR.split(",")]
+logger.info(f"Admin usernames: {ADMIN_USERNAMES}")
 
