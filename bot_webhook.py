@@ -74,20 +74,30 @@ def get_main_menu(is_admin=False):
 # --- /start ---
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
-    isadm = is_admin(message)
-    kb = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="📱 Поділитися номером телефону", request_contact=True)]],
-        resize_keyboard=True
-    )
-    await message.answer(f"Приємно познайомитись, <b>{message.from_user.first_name}</b>!\n\nТакож додайте свій номер телефону, натиснувши на кнопку нижче 👇", reply_markup=kb)
+    logger.info(f"👤 /start від користувача {message.from_user.id} (@{message.from_user.username})")
+    try:
+        isadm = is_admin(message)
+        kb = ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(text="📱 Поділитися номером телефону", request_contact=True)]],
+            resize_keyboard=True
+        )
+        await message.answer(f"Приємно познайомитись, <b>{message.from_user.first_name}</b>!\n\nТакож додайте свій номер телефону, натиснувши на кнопку нижче 👇", reply_markup=kb)
+        logger.info(f"✅ Відповідь на /start відправлено користувачу {message.from_user.id}")
+    except Exception as e:
+        logger.error(f"❌ Помилка в cmd_start: {e}", exc_info=True)
 
 # --- Обробка контакту ---
 @dp.message(lambda m: m.contact is not None)
 async def handle_contact(message: Message):
-    phone = message.contact.phone_number
-    db.add_user(message.from_user.id, phone, 0)
-    isadm = is_admin(message)
-    await message.answer("Ваш номер телефону успішно збережено\n\nРеєстрацію завершено!", reply_markup=get_main_menu(is_admin=isadm))
+    logger.info(f"📞 Отримано контакт від користувача {message.from_user.id}")
+    try:
+        phone = message.contact.phone_number
+        db.add_user(message.from_user.id, phone, 0)
+        isadm = is_admin(message)
+        await message.answer("Ваш номер телефону успішно збережено\n\nРеєстрацію завершено!", reply_markup=get_main_menu(is_admin=isadm))
+        logger.info(f"✅ Контакт збережено для користувача {message.from_user.id}")
+    except Exception as e:
+        logger.error(f"❌ Помилка в handle_contact: {e}", exc_info=True)
 
 
 # --- Головне меню ---
@@ -107,17 +117,19 @@ def get_back_menu():
 # --- Показати QR-код ---
 @dp.message(lambda m: m.text == "📱 Мій QR-код")
 async def show_qr(message: Message):
-    user = db.get_user(message.from_user.id)
-    if not user or not user[0]:
-        await message.answer("❌ Ви ще не зареєстровані або не вказали номер телефону. Натисніть /start", reply_markup=get_back_menu())
-        return
-    
-    phone = user[0]  # phone is the first element
-    
-    # Генерація QR-коду локально
+    logger.info(f"📱 QR-код запит від користувача {message.from_user.id}")
     try:
-        qr = qrcode.QRCode(
-            version=1,
+        user = db.get_user(message.from_user.id)
+        if not user or not user[0]:
+            await message.answer("❌ Ви ще не зареєстровані або не вказали номер телефону. Натисніть /start", reply_markup=get_back_menu())
+            return
+        
+        phone = user[0]  # phone is the first element
+        
+        # Генерація QR-коду локально
+        try:
+            qr = qrcode.QRCode(
+                version=1,
             error_correction=qrcode.constants.ERROR_CORRECT_L,
             box_size=10,
             border=4,
@@ -139,9 +151,12 @@ async def show_qr(message: Message):
             caption=f"📷 Ваш QR-код для нарахування бонусів\n\nНомер: <b>{phone}</b>", 
             reply_markup=get_back_menu()
         )
+        logger.info(f"✅ QR-код відправлено користувачу {message.from_user.id}")
     except Exception as e:
-        logger.error(f"Error generating QR code: {e}")
+        logger.error(f"❌ Помилка генерації QR-коду: {e}", exc_info=True)
         await message.answer("❌ Помилка при генерації QR-коду. Спробуйте пізніше.", reply_markup=get_back_menu())
+    except Exception as e:
+        logger.error(f"❌ Помилка в show_qr: {e}", exc_info=True)
 
 # --- Мій профіль ---
 @dp.message(lambda m: m.text == "💰 Кешбек")
@@ -247,8 +262,15 @@ async def inline_back_to_menu(callback: CallbackQuery):
 # --- Обробка callback для копіювання номера телефону ---
 @dp.callback_query(lambda c: c.data == "copy_phone")
 async def copy_phone_callback(callback: CallbackQuery):
+    logger.info(f"📋 Копіювання номера телефону від користувача {callback.from_user.id}")
     await callback.answer("Номер скопійовано!", show_alert=True)
     await callback.message.answer("+380681234345")
+
+# --- Загальний обробник для логування всіх повідомлень ---
+@dp.message()
+async def log_all_messages(message: Message):
+    """Логує всі необроблені повідомлення"""
+    logger.warning(f"⚠️ Необроблене повідомлення від {message.from_user.id}: text='{message.text}', content_type={message.content_type}")
 
 # --- Health Check ---
 async def health_check(request):
